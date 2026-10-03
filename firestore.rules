@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /availabilityReports/{courtId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.resource.data.status in ['available', 'busy', 'closed']
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt is timestamp;
+      allow delete: if request.auth != null && resource.data.updatedBy == request.auth.uid;
+    }
+  }
+}

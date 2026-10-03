@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0c1117" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="PickleFinder" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <meta name="theme-color" content="#0c1117" />
+  <meta name="description"
+    content="Cotabato PickleFinder — find pickleball courts around Cotabato City, view map locations, and see community-reported availability." />
+  <title>Cotabato PickleFinder — Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css?v=3" />
+</head>
+
+<body class="auth-page">
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <main class="auth-shell">
+    <section class="auth-hero">
+      <div class="brand-row">
+        <div class="brand-mark"><span class="ball-dot"></span></div>
+        <div>
+          <div class="brand-name">W-PICKLE<span>FINDER</span></div>
+          <div class="brand-sub">COTABATO CITY</div>
+        </div>
+      </div>
+      <div class="hero-copy">
+        <span class="eyebrow"><i></i> LOCAL COURT DISCOVERY</span>
+        <h1>Find where<br><span>the rally</span> is.</h1>
+        <p>Map pickleball courts around Cotabato City, check community-reported availability, and get directions in
+          seconds.</p>
+      </div>
+      <div class="mini-map-card">
+        <div class="mini-map-grid"></div>
+        <span class="mini-pin pin-1">●</span>
+        <span class="mini-pin pin-2">●</span>
+        <span class="mini-pin pin-3">●</span>
+        <div class="mini-map-label"><b>9</b><span>starter courts in the directory</span></div>
+      </div>
+      <div class="hero-note">Community-built · Cotabato City area only · Mobile ready</div>
+    </section>
+
+    <section class="auth-card-wrap">
+      <div class="auth-card">
+        <div class="mobile-brand brand-row">
+          <div class="brand-mark"><span class="ball-dot"></span></div>
+          <div>
+            <div class="brand-name">W-PICKLE<span>FINDER</span></div>
+            <div class="brand-sub">COTABATO CITY</div>
+          </div>
+        </div>
+
+        <div class="auth-heading">
+          <span class="eyebrow">WELCOME!!</span>
+          <h2>Sign in to continue</h2>
+          <p>Use your account to save courts and report availability.</p>
+        </div>
+
+        <form id="loginForm" class="auth-form" novalidate>
+          <label>Email address</label>
+          <div class="input-wrap"><span class="icon">@</span><input id="loginEmail" type="email" autocomplete="email"
+              placeholder="you@example.com" required /></div>
+          <label>Password</label>
+          <div class="input-wrap"><span class="icon">••</span><input id="loginPassword" type="password"
+              autocomplete="current-password" placeholder="Enter your password" required /><button class="eye-btn"
+              type="button" data-toggle-password="#loginPassword" aria-label="Show password">◉</button></div>
+          <div class="form-row"><label class="check-row"><input id="rememberMe" type="checkbox" /><span class="check-ui"
+                aria-hidden="true"></span><span>Remember me</span></label><a href="forgot.html">Forgot password?</a>
+          </div>
+          <button class="primary-btn" type="submit"><span>Sign in</span><b>→</b></button>
+        </form>
+
+        <div class="divider"><span>or continue with</span></div>
+        <button id="googleLoginBtn" class="google-btn" type="button" aria-label="Continue with Google"><span
+            class="google-g" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4"
+                d="M21.35 12.27c0-.68-.06-1.33-.18-1.96H12v3.71h5.23a4.47 4.47 0 0 1-1.94 2.93v2.44h3.14c1.84-1.69 2.92-4.18 2.92-7.12Z" />
+              <path fill="#34A853"
+                d="M12 21.75c2.64 0 4.86-.88 6.48-2.36l-3.14-2.44c-.87.58-1.98.92-3.34.92-2.56 0-4.73-1.73-5.51-4.05H3.25v2.52A9.79 9.79 0 0 0 12 21.75Z" />
+              <path fill="#FBBC05"
+                d="M6.49 13.82A5.89 5.89 0 0 1 6.18 12c0-.63.11-1.24.31-1.82V7.66H3.25A9.75 9.75 0 0 0 2.25 12c0 1.57.38 3.06 1 4.34l3.24-2.52Z" />
+              <path fill="#EA4335"
+                d="M12 6.13c1.43 0 2.71.49 3.72 1.46l2.79-2.79C16.86 3.2 14.64 2.25 12 2.25a9.79 9.79 0 0 0-8.75 5.41l3.24 2.52C7.27 7.86 9.44 6.13 12 6.13Z" />
+            </svg></span><span>Continue with Google</span></button>
+        <p class="auth-switch">New to PickleFinder? <a href="signup.html">Create an account</a></p>
+        <div id="authMessage" class="auth-message" role="status"></div>
+        <p class="tiny-print">By continuing, you agree to use venue information responsibly. Availability may be
+          community-reported and should be confirmed with the court.<br><a style="color: yellowgreen;">Made by
+            Wenxyz</a></p>
+      </div>
+    </section>
+  </main>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script type="module" src="assets/auth.js"></script>
+</body>
+
+</html>

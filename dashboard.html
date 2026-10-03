@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0c1117" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="PickleFinder" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <script>
+    (() => {
+      const theme = localStorage.getItem("picklefinderTheme");
+      if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+      else if (window.matchMedia?.("(prefers-color-scheme: light)")?.matches) document.documentElement.dataset.theme = "light";
+    })();
+  </script>
+  <meta name="description" content="Find pickleball courts in Cotabato City." />
+  <title>PickleFinder — Court Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="assets/styles.css?v=3" />
+</head>
+
+<body class="app-page">
+  <div id="appLoader" class="app-loader">
+    <div class="loader-ring"></div><span>Loading PickleFinder…</span>
+  </div>
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar" aria-label="PickleFinder navigation">
+      <div class="side-top">
+        <a href="dashboard.html" class="brand-row side-brand">
+          <div class="brand-mark"><span class="ball-dot"></span></div>
+          <div>
+            <div class="brand-name">W-PICKLE<span>FINDER</span></div>
+            <div class="brand-sub">COTABATO CITY</div>
+          </div>
+        </a>
+        <button id="closeSidebar" class="icon-btn mobile-only" aria-label="Close menu">×</button>
+      </div>
+
+      <div class="sidebar-user" id="sidebarUser">
+        <div class="avatar" id="userAvatar">P</div>
+        <div class="user-copy"><strong id="userName">Player</strong><span id="userEmail">Signed in</span></div>
+        <button id="profileMenuBtn" class="mini-icon" aria-label="Open account settings">⚙</button>
+      </div>
+
+      <div class="sidebar-content">
+        <nav class="side-nav" id="mainSideNav">
+          <div class="nav-label">EXPLORE</div>
+          <button class="nav-item active" id="navMap" data-sidebar-view="map"><span
+              class="nav-icon">⌖</span><span>Map</span></button>
+          <button class="nav-item" id="navCourts" data-sidebar-view="courts"><span
+              class="nav-icon">▦</span><span>Courts</span><span class="nav-count" id="courtCount">9</span></button>
+          <button class="nav-item" data-filter-nav="available"><span class="nav-icon">✓</span><span>Available
+              now</span><span class="nav-count available-count" id="availableCount">—</span></button>
+          <button class="nav-item" data-filter-nav="favorites"><span class="nav-icon">♡</span><span>My
+              favorites</span><span class="nav-count" id="favoriteCount">0</span></button>
+
+          <div class="nav-label">COMMUNITY</div>
+          <button class="nav-item" id="reportFromNav"><span class="nav-icon">+</span><span>Report
+              availability</span></button>
+          <button class="nav-item" id="aboutBtn"><span class="nav-icon">i</span><span>How it works</span></button>
+
+          <div class="nav-label">APP</div>
+          <button class="nav-item" id="settingsNav" data-sidebar-view="settings"><span
+              class="nav-icon">⚙</span><span>Settings</span></button>
+          <button class="nav-item install-nav-btn" id="installNavBtn" type="button"><span
+              class="nav-icon">⇩</span><span>Install app</span><span class="nav-count install-state">+</span></button>
+        </nav>
+
+        <section id="courtsPanel" class="sidebar-panel hidden" aria-label="Court directory">
+          <div class="sidebar-panel-head">
+            <button class="panel-back" type="button" data-sidebar-back><span>‹</span> Back</button>
+            <div><span class="eyebrow">DIRECTORY</span>
+              <h2>Courts in Cotabato</h2>
+            </div>
+            <span class="panel-count" id="sidebarCourtCount">9</span>
+          </div>
+          <div class="sidebar-search">
+            <span>⌕</span><input id="courtSidebarSearch" type="search" placeholder="Search courts…"
+              autocomplete="off" />
+          </div>
+          <div class="sidebar-filter-row" id="sidebarFilters">
+            <button class="mini-filter active" data-side-filter="all">All</button>
+            <button class="mini-filter" data-side-filter="available">Available</button>
+            <button class="mini-filter" data-side-filter="indoor">Indoor</button>
+            <button class="mini-filter" data-side-filter="outdoor">Outdoor</button>
+          </div>
+          <div id="sidebarCourtList" class="sidebar-court-list"></div>
+          <div id="sidebarCourtEmpty" class="sidebar-empty hidden"><span>⌕</span><b>No matching courts</b><small>Try a
+              court name, area, or filter.</small></div>
+        </section>
+
+        <section id="settingsPanel" class="sidebar-panel hidden" aria-label="PickleFinder settings">
+          <div class="sidebar-panel-head settings-head">
+            <button class="panel-back" type="button" data-sidebar-back><span>‹</span> Back</button>
+            <div><span class="eyebrow">PREFERENCES</span>
+              <h2>Settings</h2>
+            </div>
+          </div>
+
+          <div class="settings-scroll">
+            <section class="settings-group">
+              <div class="settings-group-title"><span class="settings-icon">Aa</span>
+                <div><b>Appearance</b><small>Choose how PickleFinder looks.</small></div>
+              </div>
+              <div class="theme-switcher" role="group" aria-label="Theme">
+                <button type="button" data-theme-choice="light">☀ Light</button>
+                <button type="button" data-theme-choice="dark">☾ Dark</button>
+                <button type="button" data-theme-choice="system">◐ System</button>
+              </div>
+            </section>
+
+            <section class="settings-group">
+              <div class="settings-group-title"><span class="settings-icon">◎</span>
+                <div><b>Account</b><small>Manage your profile and sign-in.</small></div>
+              </div>
+              <label class="settings-label" for="settingsDisplayName">Display name</label>
+              <input id="settingsDisplayName" class="settings-input" type="text" maxlength="60"
+                placeholder="Your name" />
+              <label class="settings-label" for="settingsEmail">Email</label>
+              <input id="settingsEmail" class="settings-input" type="email" disabled placeholder="Signed-in email" />
+              <button id="saveAccountBtn" class="settings-primary" type="button">Save profile</button>
+              <button id="resetPasswordBtn" class="settings-secondary" type="button">Send password reset email</button>
+              <small class="settings-help">Your email sign-in address is managed by Firebase Authentication.</small>
+            </section>
+
+            <section class="settings-group">
+              <div class="settings-group-title"><span class="settings-icon">⌁</span>
+                <div><b>Privacy</b><small>Control what this browser keeps and shares.</small></div>
+              </div>
+              <label class="settings-toggle"><span><b>Post my name with reports</b><small>Turn off to post as
+                    “PickleFinder player”.</small></span><input id="shareReportName" type="checkbox"
+                  checked><i></i></label>
+              <label class="settings-toggle"><span><b>Keep search on this device</b><small>Remembers your last court
+                    search locally.</small></span><input id="rememberSearch" type="checkbox" checked><i></i></label>
+              <div class="privacy-note">Location is requested only when you use “Use my location” or Directions.
+                PickleFinder does not continuously track your location.</div>
+              <button id="clearLocalDataBtn" class="settings-danger" type="button">Clear local favorites &
+                preferences</button>
+            </section>
+
+            <section class="settings-group">
+              <div class="settings-group-title"><span class="settings-icon">⇩</span>
+                <div><b>Install & App</b><small>Use PickleFinder like a phone app.</small></div>
+              </div>
+              <button id="installAppBtn" class="settings-primary" type="button">Install PickleFinder</button>
+              <p id="installHelp" class="settings-help install-help">On iPhone/iPad, use your browser’s Share menu →
+                <b>Add to Home Screen</b>.
+              </p>
+              <div class="app-meta"><span>Version</span><b>1.0 · PWA</b></div>
+            </section>
+          </div>
+        </section>
+      </div>
+
+      <div class="sidebar-bottom">
+        <div class="city-lock"><span class="status-dot"></span>
+          <div><b>Cotabato City only</b><span>Local area filter is on</span></div>
+        </div>
+        <button id="signOutBtn" class="signout-btn"><span>↪</span> Sign out</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button id="openSidebar" class="icon-btn mobile-only" aria-label="Open menu">☰</button>
+        <div class="top-title"><span class="eyebrow">COURT FINDER</span>
+          <h1>Pickleball around <span>Cotabato City</span></h1>
+        </div>
+        <div class="top-actions"><button id="locateBtn" class="ghost-btn"><span>◎</span><span class="locate-text">Use my
+              location</span></button><button id="topProfile" class="profile-chip"><span class="avatar small"
+              id="topAvatar">P</span><span class="profile-name" id="topUserName">Player</span></button></div>
+      </header>
+
+      <section class="search-row">
+        <div class="search-box"><span>⌕</span><input id="courtSearch" type="search"
+            placeholder="Search court, barangay, or landmark…" /><kbd>Ctrl K</kbd></div>
+        <div class="quick-filters" id="quickFilters"><button class="filter-chip active"
+            data-filter="all">All</button><button class="filter-chip" data-filter="available">Available</button><button
+            class="filter-chip" data-filter="indoor">Indoor</button><button class="filter-chip"
+            data-filter="outdoor">Outdoor</button></div>
+      </section>
+
+      <section class="workspace">
+        <div class="map-panel map-panel-main">
+          <div id="map"></div>
+          <div class="map-controls"><button id="recenterBtn" class="map-control" title="Recenter map">⌖</button><button
+              id="zoomInBtn" class="map-control" title="Zoom in">+</button><button id="zoomOutBtn" class="map-control"
+              title="Zoom out">−</button></div>
+          <div class="map-legend"><span><i class="legend-dot available"></i> Community reported available</span><span><i
+                class="legend-dot listed"></i> Court listed</span></div>
+          <div id="mapNotice" class="map-notice">Loading court locations…</div>
+          <div id="routePanel" class="route-panel hidden" aria-live="polite">
+            <div class="route-head">
+              <div><span class="eyebrow">IN-APP DIRECTIONS</span>
+                <h3 id="routeTitle">Route to court</h3>
+              </div><button id="closeRouteBtn" class="route-close" aria-label="Close directions">×</button>
+            </div>
+            <div class="route-summary">
+              <div><span>Distance</span><b id="routeDistance">—</b></div>
+              <div><span>ETA</span><b id="routeDuration">—</b></div>
+              <div><span>Mode</span><b>Driving</b></div>
+            </div>
+            <div class="route-origin"><span class="origin-dot"></span>
+              <div><b>Your location</b><small id="routeOriginText">Waiting for your location…</small></div>
+            </div>
+            <div class="route-destination"><span class="destination-dot"></span>
+              <div><b id="routeDestinationText">Selected court</b><small id="routeDestinationAddress">—</small></div>
+            </div>
+            <button id="refreshRouteBtn" class="primary-btn route-refresh" type="button"><span>Refresh
+                route</span><b>↻</b></button>
+            <div class="turn-list" id="turnList"></div>
+            <p class="route-note">Route and travel time are estimated from OpenStreetMap routing data and can change
+              with road conditions. Use local road signs while travelling.</p>
+          </div>
+        </div>
+
+        <!-- Kept for existing rendering logic; court browsing is now in the sidebar. -->
+        <aside class="results-panel legacy-results" aria-hidden="true">
+          <div class="results-head">
+            <div><span class="eyebrow">COTABATO CITY</span>
+              <h2 id="resultsTitle">Courts near the city</h2>
+            </div><button id="clearFilters" class="text-btn">Clear</button>
+          </div>
+          <div class="results-summary"><b id="visibleCount">0</b><span>venues shown</span><span
+              class="summary-sep">•</span><span>Updated from public listings + community reports</span></div>
+          <div id="courtList" class="court-list"></div>
+          <button id="seeMoreCourts" class="see-more-btn" type="button">See all courts</button>
+          <div id="emptyState" class="empty-state hidden">
+            <div class="empty-icon">⌕</div>
+            <h3>No courts match</h3>
+            <p>Try another court name, barangay, or filter.</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <div id="backdrop" class="backdrop"></div>
+
+  <div id="courtModal" class="modal hidden">
+    <div class="modal-dialog wide"><button class="modal-close" data-close-modal="courtModal">×</button>
+      <div id="courtModalBody"></div>
+    </div>
+  </div>
+  <div id="reportModal" class="modal hidden">
+    <div class="modal-dialog"><button class="modal-close" data-close-modal="reportModal">×</button>
+      <div class="modal-kicker">COMMUNITY UPDATE</div>
+      <h2>Report availability</h2>
+      <p class="modal-sub">Tell other players what you see at the venue right now. This is a community report, not an
+        official booking status.</p>
+      <form id="reportForm" class="auth-form"><label>Court</label><select id="reportCourt"
+          required></select><label>Status</label>
+        <div class="status-options"><label class="status-option"><input type="radio" name="status" value="available"
+              checked><span><b>Available</b><small>I can see an open court / open play.</small></span></label><label
+            class="status-option"><input type="radio" name="status" value="busy"><span><b>Busy / Full</b><small>Courts
+                appear occupied right now.</small></span></label><label class="status-option"><input type="radio"
+              name="status" value="closed"><span><b>Closed</b><small>Venue is closed or not
+                playing.</small></span></label></div><label>Note (optional)</label><textarea id="reportNote" rows="3"
+          maxlength="300" placeholder="Example: Court 2 open until 10 PM"></textarea><button class="primary-btn"
+          type="submit"><span>Post report</span><b>→</b></button>
+      </form>
+      <div id="reportMessage" class="auth-message"></div>
+    </div>
+  </div>
+  <div id="aboutModal" class="modal hidden">
+    <div class="modal-dialog"><button class="modal-close" data-close-modal="aboutModal">×</button>
+      <div class="modal-kicker">ABOUT PICKLEFINDER</div>
+      <h2>How this works</h2>
+      <div class="about-stack">
+        <div><b>1. Find</b>
+          <p>Use the map, search, and filters to discover courts inside the Cotabato City area.</p>
+        </div>
+        <div><b>2. Verify</b>
+          <p>Venue addresses, rates, and hours can change. Open the venue details or Directions link before travelling.
+          </p>
+        </div>
+        <div><b>3. Share</b>
+          <p>Signed-in players can post a community availability report. Recent reports appear on court cards.</p>
+        </div>
+      </div>
+      <p class="source-note">Court listings in this MVP are seeded from public Cotabato City directory listings checked
+        during development. They are not an official city registry.</p>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script type="module" src="assets/app.js"></script>
+</body>
+
+</html>

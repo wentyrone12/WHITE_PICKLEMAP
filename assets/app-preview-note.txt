@@ -1,0 +1,1 @@
+Firebase is intentionally not preloaded with a user's project credentials. Configure assets/firebase-config.js before production use.
