@@ -1,8 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp, collection } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { firebaseConfig, firebaseReady } from "./firebase-config.js";
-import { COURTS, COTABATO_CENTER, CITY_BOUNDS } from "./courts.js";
+import { COURTS as SEED_COURTS, PH_CENTER, PH_BOUNDS } from "./courts.js";
+const COURTS = [...SEED_COURTS]; // seeds + live OpenStreetMap courts (appended at runtime)
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -34,6 +35,16 @@ let routeRequestController = null;
 let courtsExpanded = false;
 let deferredInstallPrompt = null;
 let sidebarFilter = "all";
+let cluster = null;
+let viewCenter = PH_CENTER;
+let userPoint = null;
+let osmLoaded = false;
+const SIDEBAR_LIMIT = 80;
+const GEO_KEY = "picklefinderGeoCache", OSM_KEY = "picklefinderOsmCourts", OSM_TTL = 24 * 3600 * 1000;
+const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
+const distKm = (a, b) => { const t = Math.PI / 180, dl = (b[0] - a[0]) * t, dn = (b[1] - a[1]) * t; const x = Math.sin(dl / 2) ** 2 + Math.cos(a[0] * t) * Math.cos(b[0] * t) * Math.sin(dn / 2) ** 2; return 12742 * Math.asin(Math.sqrt(x)); };
+const courtDistance = (c) => { const p = geocoded.get(c.id), ref = userPoint || viewCenter; return p && ref ? distKm(ref, [p.lat, p.lon]) : null; };
+const inPH = (lat, lon) => lat >= PH_BOUNDS.minLat && lat <= PH_BOUNDS.maxLat && lon >= PH_BOUNDS.minLng && lon <= PH_BOUNDS.maxLng;
 const INITIAL_COURT_LIMIT = 4;
 const escapeHTML = (value) => String(value ?? "").replace(/[&<>'"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));
 const toast = (text, type = "info") => {
@@ -65,7 +76,7 @@ const timeAgo = (value) => {
 const saveFavorites = () => localStorage.setItem("picklefinderFavorites", JSON.stringify(favoriteIds));
 
 function visibleCourts() {
-  return COURTS.filter((court) => {
+  const list = COURTS.filter((court) => {
     const hay = `${court.name} ${court.area} ${court.barangay} ${court.address} ${court.tags.join(" ")}`.toLowerCase();
     if (searchTerm && !hay.includes(searchTerm)) return false;
     if (activeFilter === "favorites" && !favoriteIds.includes(court.id)) return false;
@@ -74,6 +85,7 @@ function visibleCourts() {
     if (activeFilter === "outdoor" && court.type !== "outdoor") return false;
     return true;
   });
+  return list.sort((a, b) => { const da = courtDistance(a), db2 = courtDistance(b); if (da == null && db2 == null) return 0; if (da == null) return 1; if (db2 == null) return -1; return da - db2; });
 }
 
 function typeLabel(type) { return type === "indoor" ? "Indoor" : type === "covered" ? "Covered" : "Outdoor"; }
@@ -94,10 +106,11 @@ function sidebarCourtCard(court) {
   const av = availabilityLabel(court.id);
   const fav = favoriteIds.includes(court.id);
   const courtCount = court.courts ? `${court.courts} court${court.courts > 1 ? "s" : ""}` : "Court count n/a";
+  const d = courtDistance(court), dTag = d != null ? `<span class="dist-tag">${formatDistance(d * 1000)}</span>` : "";
   return `<article class="sidebar-court-card" data-court-id="${court.id}">
     <div class="sidebar-court-top"><div class="court-badge ${av.key}"><i></i>${av.label}</div><button class="favorite-btn ${fav ? "active" : ""}" data-favorite="${court.id}" aria-label="${fav ? "Remove from" : "Add to"} favorites">${fav ? "♥" : "♡"}</button></div>
     <button class="sidebar-court-title" data-open-court="${court.id}"><b>${escapeHTML(court.name)}</b><small>${escapeHTML(court.area)}</small></button>
-    <div class="sidebar-court-meta"><span>${typeLabel(court.type)}</span><span>${escapeHTML(courtCount)}</span><span>${escapeHTML(court.rate)}</span></div>
+    <div class="sidebar-court-meta">${dTag}<span>${typeLabel(court.type)}</span><span>${escapeHTML(courtCount)}</span><span>${escapeHTML(court.rate)}</span></div>
     <div class="sidebar-court-address">${escapeHTML(court.address)}</div>
     <button class="sidebar-court-action" data-open-court="${court.id}">View details <b>→</b></button>
   </article>`;
@@ -140,13 +153,13 @@ function renderList() {
     seeMore.textContent = courtsExpanded ? "Show less" : `See all ${courts.length} courts`;
     seeMore.setAttribute("aria-expanded", String(courtsExpanded));
   }
-  $("#resultsTitle") && ($("#resultsTitle").textContent = activeFilter === "favorites" ? "My favorite courts" : activeFilter === "available" ? "Available now" : searchTerm ? `Results for “${searchTerm}”` : "Courts near the city");
+  $("#resultsTitle") && ($("#resultsTitle").textContent = activeFilter === "favorites" ? "My favorite courts" : activeFilter === "available" ? "Available now" : searchTerm ? `Results for “${searchTerm}”` : "Courts near you");
   bindRenderedCourtActions();
 
   const sidebarCourts = sidebarVisibleCourts();
   const sideList = $("#sidebarCourtList");
   const sideEmpty = $("#sidebarCourtEmpty");
-  if (sideList) sideList.innerHTML = sidebarCourts.map(sidebarCourtCard).join("");
+  if (sideList) sideList.innerHTML = sidebarCourts.slice(0, SIDEBAR_LIMIT).map(sidebarCourtCard).join("") + (sidebarCourts.length > SIDEBAR_LIMIT ? `<div class="sidebar-empty"><small>Showing the nearest ${SIDEBAR_LIMIT} of ${sidebarCourts.length} courts. Search or pick a city to narrow it down.</small></div>` : "");
   if (sideEmpty) sideEmpty.classList.toggle("hidden", sidebarCourts.length !== 0);
   $("#sidebarCourtCount") && ($("#sidebarCourtCount").textContent = sidebarCourts.length);
   if (searchTerm && $("#courtSidebarSearch") && $("#courtSidebarSearch").value !== searchTerm) $("#courtSidebarSearch").value = searchTerm;
@@ -154,23 +167,36 @@ function renderList() {
   updateCounts();
 }
 
+const pinIcon = (key) => L.divIcon({ className: `pf-pin ${key}`, html: "<span></span>", iconSize: [26, 26], iconAnchor: [13, 26], popupAnchor: [0, -24] });
+const popupHTML = (court, av) => `<div class="map-popup"><div class="popup-status ${av.key}"><i></i>${av.label}</div><h3>${escapeHTML(court.name)}</h3><p>${escapeHTML(court.address)}</p><div class="popup-actions"><button class="popup-btn" data-popup-court="${court.id}">View details</button><button class="popup-btn route-popup-btn" data-popup-route="${court.id}">Directions</button></div></div>`;
 function renderMarkers() {
-  if (!map) return;
-  const keep = new Set(visibleCourts().map((c) => c.id));
-  markers.forEach((marker, id) => { if (!keep.has(id)) { marker.remove(); markers.delete(id); } });
-  for (const court of visibleCourts()) {
+  if (!map || !cluster) return;
+  const vis = visibleCourts();
+  const keep = new Set(vis.map((c) => c.id));
+  const gone = [];
+  markers.forEach((marker, id) => { if (!keep.has(id)) { gone.push(marker); markers.delete(id); } });
+  if (gone.length) cluster.removeLayers(gone);
+  const fresh = [];
+  for (const court of vis) {
     const point = geocoded.get(court.id);
-    if (!point || markers.has(court.id)) continue;
+    if (!point) continue;
     const av = availabilityLabel(court.id);
-    const marker = L.marker([point.lat, point.lon], { title: court.name }).addTo(map);
-    marker.bindPopup(`<div class="map-popup"><div class="popup-status ${av.key}"><i></i>${av.label}</div><h3>${escapeHTML(court.name)}</h3><p>${escapeHTML(court.address)}</p><div class="popup-actions"><button class="popup-btn" data-popup-court="${court.id}">View details</button><button class="popup-btn route-popup-btn" data-popup-route="${court.id}">Directions</button></div></div>`);
+    let marker = markers.get(court.id);
+    if (marker) {
+      if (marker._pfKey !== av.key) { marker._pfKey = av.key; marker.setIcon(pinIcon(av.key)); marker.getPopup()?.setContent(popupHTML(court, av)); }
+      continue;
+    }
+    marker = L.marker([point.lat, point.lon], { title: court.name, icon: pinIcon(av.key) });
+    marker._pfKey = av.key;
+    marker.bindPopup(popupHTML(court, av));
     marker.on("popupopen", () => setTimeout(() => {
       document.querySelector(`[data-popup-court="${court.id}"]`)?.addEventListener("click", () => openCourt(court.id));
       document.querySelector(`[data-popup-route="${court.id}"]`)?.addEventListener("click", () => { marker.closePopup(); startRouteToCourt(court.id); });
     }, 0));
-    markers.set(court.id, marker);
+    markers.set(court.id, marker); fresh.push(marker);
   }
-  if (geocoded.size) $("#mapNotice").textContent = `${geocoded.size} of ${visibleCourts().length || COURTS.length} visible court locations mapped. Tap a pin for details.`;
+  if (fresh.length) cluster.addLayers(fresh);
+  if ($("#mapNotice") && (osmLoaded || markers.size)) $("#mapNotice").textContent = `${markers.size} court${markers.size === 1 ? "" : "s"} on the map. Tap a pin or cluster to explore.`;
 }
 
 function updateCounts() {
@@ -187,28 +213,122 @@ function toggleFavorite(e) {
   toast(favoriteIds.includes(id) ? "Court saved to favorites." : "Removed from favorites.", "success");
 }
 
+let geoCache = {};
+try { geoCache = JSON.parse(localStorage.getItem(GEO_KEY) || "{}"); } catch { geoCache = {}; }
 async function geocodeCourt(court) {
-  if (geocoded.has(court.id)) return;
+  if (geocoded.has(court.id)) return false;
+  if (geoCache[court.id]) { geocoded.set(court.id, geoCache[court.id]); return false; }
   try {
-    const query = `${court.address}, Philippines`;
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=ph&bounded=1&viewbox=124.17,7.14,124.31,7.29&q=${encodeURIComponent(query)}`;
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=ph&q=${encodeURIComponent(court.address + ", Philippines")}`;
     const res = await fetch(url, { headers: { "Accept-Language": "en" } });
     if (!res.ok) throw new Error("Geocoder error");
     const data = await res.json();
     if (data[0]) {
       const lat = Number(data[0].lat), lon = Number(data[0].lon);
-      if (lat >= CITY_BOUNDS.minLat && lat <= CITY_BOUNDS.maxLat && lon >= CITY_BOUNDS.minLng && lon <= CITY_BOUNDS.maxLng) geocoded.set(court.id, { lat, lon });
+      if (inPH(lat, lon)) { geocoded.set(court.id, { lat, lon }); geoCache[court.id] = { lat, lon }; localStorage.setItem(GEO_KEY, JSON.stringify(geoCache)); }
     }
   } catch (e) { console.warn("Geocoding failed for", court.name, e); }
+  return true;
 }
 async function geocodeAll() {
-  $("#mapNotice").textContent = "Mapping local court locations…";
-  for (const court of COURTS) {
-    await geocodeCourt(court);
+  for (const court of SEED_COURTS) {
+    const usedNetwork = await geocodeCourt(court);
     renderMarkers();
-    await new Promise((r) => setTimeout(r, 850));
+    if (usedNetwork) await new Promise((r) => setTimeout(r, 1100));
   }
-  $("#mapNotice").textContent = geocoded.size ? `Mapped ${geocoded.size} local venues. Exact venue details can change—confirm before travel.` : "Map pins could not be loaded. Use the court list to open directions.";
+  renderList();
+}
+
+// ---- Nationwide courts from OpenStreetMap (leisure=pitch + sport=pickleball) ----
+const normName = (n) => String(n || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+function osmToRaw(el) {
+  const t = el.tags || {}, lat = el.lat ?? el.center?.lat, lon = el.lon ?? el.center?.lon;
+  if (lat == null || lon == null || !inPH(lat, lon)) return null;
+  return { key: `${el.type[0]}${el.id}`, t, lat, lon, named: Boolean(t.name || t["name:en"]) };
+}
+function mergeOsm(raws) {
+  const seedNames = new Set(SEED_COURTS.map((c) => normName(c.name)));
+  const grid = new Map(), out = [];
+  for (const r of raws) {
+    const name = r.t.name || r.t["name:en"] || "";
+    if (name && seedNames.has(normName(name))) continue;
+    const gx = Math.floor(r.lat / 0.003), gy = Math.floor(r.lon / 0.003);
+    let hit = null;
+    for (let dx = -1; dx <= 1 && !hit; dx++) for (let dy = -1; dy <= 1 && !hit; dy++) {
+      for (const c of grid.get(`${gx + dx}:${gy + dy}`) || []) {
+        const d = distKm([c.lat, c.lon], [r.lat, r.lon]);
+        if (d < 0.08 || (name && c._n === normName(name) && d < 0.5)) { hit = c; break; }
+      }
+    }
+    const n = parseInt(r.t.courts, 10) || 1;
+    if (hit) { hit.courts += n; if (!hit._named && name) { hit.name = name; hit._n = normName(name); hit._named = true; } continue; }
+    const t = r.t, city = t["addr:city"] || t["addr:municipality"] || t["addr:town"] || "", place = t["addr:suburb"] || t["addr:barangay"] || t["addr:district"] || "", prov = t["addr:province"] || t["addr:state"] || "";
+    const street = [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" ");
+    const c = {
+      id: `osm-${r.key}`, name: name || "Pickleball court", area: place || city || prov || "Philippines", barangay: place,
+      address: [street, place, city, prov].filter(Boolean).join(", ") || `${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}`,
+      type: t.indoor === "yes" || t.leisure === "sports_hall" ? "indoor" : (t.covered === "yes" || t.roof === "yes" ? "covered" : "outdoor"),
+      courts: n, rate: t.fee === "no" ? "Free" : "Verify", contact: t.phone || t["contact:phone"] || "",
+      tags: ["OpenStreetMap", t.lit === "yes" ? "lit" : "", t.surface || ""].filter(Boolean), source: "osm",
+      lat: r.lat, lon: r.lon, _n: normName(name), _named: Boolean(name)
+    };
+    out.push(c);
+    const k = `${gx}:${gy}`; if (!grid.has(k)) grid.set(k, []); grid.get(k).push(c);
+  }
+  return out.map(({ _n, _named, ...rest }) => rest);
+}
+function addOsmCourts(list) {
+  const have = new Set(COURTS.map((c) => c.id));
+  for (const c of list) { if (have.has(c.id)) continue; COURTS.push(c); geocoded.set(c.id, { lat: c.lat, lon: c.lon }); }
+  osmLoaded = true;
+  renderList(); renderMarkers();
+}
+async function loadOsmCourts() {
+  try { const cached = JSON.parse(localStorage.getItem(OSM_KEY) || "null"); if (cached && Date.now() - cached.t < OSM_TTL && cached.d?.length) { addOsmCourts(cached.d); return; } } catch {}
+  $("#mapNotice") && ($("#mapNotice").textContent = "Loading pickleball courts across the Philippines…");
+  const query = `[out:json][timeout:60];area["ISO3166-1"="PH"][admin_level=2]->.a;(nwr["sport"~"pickleball"](area.a);nwr["name"~"pickle",i]["leisure"~"pitch|sports_centre|sports_hall|fitness_centre"](area.a););out center tags;`;
+  for (const endpoint of OVERPASS) {
+    try {
+      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "data=" + encodeURIComponent(query), signal: AbortSignal.timeout(70000) });
+      if (!res.ok) continue;
+      const json = await res.json();
+      const merged = mergeOsm((json.elements || []).map(osmToRaw).filter(Boolean));
+      try { localStorage.setItem(OSM_KEY, JSON.stringify({ t: Date.now(), d: merged })); } catch {}
+      addOsmCourts(merged);
+      toast(`${merged.length} more courts loaded across the Philippines.`, "success");
+      return;
+    } catch (e) { console.warn("Overpass failed", endpoint, e); }
+  }
+  $("#mapNotice") && ($("#mapNotice").textContent = "Couldn't reach the live OpenStreetMap court data. Showing built-in listings; it will retry when you're online.");
+}
+window.addEventListener("online", () => { if (!osmLoaded) loadOsmCourts(); });
+
+function focusCourt(id) {
+  const p = geocoded.get(id), m = markers.get(id);
+  if (!p || !map) return;
+  map.setView([p.lat, p.lon], Math.max(map.getZoom(), 16));
+  if (m && cluster) cluster.zoomToShowLayer(m, () => m.openPopup());
+}
+function flyToPlace(lat, lon, zoom = 12) {
+  userPoint = null; viewCenter = [lat, lon];
+  map?.flyTo([lat, lon], zoom, { duration: 1.2 });
+  renderList();
+}
+async function searchPlace(q) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=ph&q=${encodeURIComponent(q)}`, { headers: { "Accept-Language": "en" } });
+    const data = res.ok ? await res.json() : [];
+    if (!data[0]) return toast(`Couldn't find “${q}” in the Philippines.`, "error");
+    syncSearch("");
+    flyToPlace(Number(data[0].lat), Number(data[0].lon), 13);
+    toast(`Showing ${data[0].display_name.split(",").slice(0, 2).join(",")}`, "success");
+  } catch { toast("Place search failed. Check your connection.", "error"); }
+}
+async function submitSearch(value) {
+  const q = String(value || "").trim(); if (!q) return;
+  const first = visibleCourts().find((c) => geocoded.has(c.id));
+  if (first) { const p = geocoded.get(first.id); flyToPlace(p.lat, p.lon, 14); return; }
+  await searchPlace(q);
 }
 
 function openCourt(id) {
@@ -220,7 +340,7 @@ function openCourt(id) {
   $("[data-route-specific]")?.addEventListener("click", async () => { closeModal("courtModal"); await startRouteToCourt(court.id); });
   $("[data-report-specific]")?.addEventListener("click", () => { closeModal("courtModal"); openReport(court.id); });
   openModal("courtModal");
-  const point = geocoded.get(id); if (point) { map.setView([point.lat, point.lon], Math.max(map.getZoom(), 16)); setTimeout(() => markers.get(id)?.openPopup(), 250); }
+  focusCourt(id);
 }
 
 function formatDistance(meters) {
@@ -286,7 +406,14 @@ async function startRouteToCourt(id) {
     });
     routeOrigin = { lat: position.coords.latitude, lon: position.coords.longitude };
     $("#routeOriginText").textContent = `${routeOrigin.lat.toFixed(5)}, ${routeOrigin.lon.toFixed(5)}`;
-    await calculateRoute(routeOrigin, destination, court);
+    try { await calculateRoute(routeOrigin, destination, court); }
+    catch (re) {
+      if (re?.name === "AbortError") return;
+      console.warn("Routing failed", re);
+      $("#routeDistance").textContent = "—"; $("#routeDuration").textContent = "—";
+      $("#turnList").innerHTML = `<div class="turn-empty"><b>No driving route found</b><span>The court may be across water, or the routing service is busy. Try again or choose a nearer court.</span></div>`;
+      toast("Couldn't build a driving route.", "error");
+    }
   } catch (error) {
     console.warn("Route location failed", error);
     $("#routeOriginText").textContent = "Location permission is needed for directions.";
@@ -331,7 +458,9 @@ $$('.modal').forEach((m) => m.addEventListener("click", (e) => { if (e.target ==
 
 function openReport(preselected = "") {
   const select = $("#reportCourt");
-  select.innerHTML = COURTS.map(c => `<option value="${c.id}" ${c.id===preselected ? "selected" : ""}>${escapeHTML(c.name)}</option>`).join("");
+  const base = visibleCourts().slice(0, 150), pre = COURTS.find(c => c.id === preselected);
+  const opts = pre && !base.includes(pre) ? [pre, ...base] : (base.length ? base : COURTS.slice(0, 150));
+  select.innerHTML = opts.map(c => `<option value="${c.id}" ${c.id===preselected ? "selected" : ""}>${escapeHTML(c.name)}</option>`).join("");
   $("#reportMessage").textContent = ""; openModal("reportModal");
 }
 $("#reportFromNav")?.addEventListener("click", () => openReport());
@@ -360,11 +489,13 @@ function setupMap() {
 
   map = L.map(mapEl, {
     zoomControl: false,
-    minZoom: 12,
+    minZoom: 5,
+    maxBounds: L.latLngBounds([PH_BOUNDS.minLat - 1.5, PH_BOUNDS.minLng - 1.5], [PH_BOUNDS.maxLat + 1.5, PH_BOUNDS.maxLng + 1.5]),
+    maxBoundsViscosity: 0.7,
     maxZoom: 19,
     preferCanvas: true,
     tap: true
-  }).setView(COTABATO_CENTER, 13);
+  }).setView(PH_CENTER, 6);
 
   // Primary map tiles. If the primary tile host is unavailable, automatically switch
   // to a second public basemap so the map does not remain a blank/black panel.
@@ -397,8 +528,10 @@ function setupMap() {
   primaryTiles.addTo(map);
   window.setTimeout(startFallback, 5500);
 
-  L.circle(COTABATO_CENTER, { radius: 8500, color: "#3be6b4", fillColor: "#3be6b4", fillOpacity: 0.035, weight: 1, dashArray: "5 7" }).addTo(map);
-  L.marker(COTABATO_CENTER, { interactive: false, opacity: 0 }).addTo(map);
+  cluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50, disableClusteringAtZoom: 17, chunkedLoading: true });
+  map.addLayer(cluster);
+  let dragTimer;
+  map.on("dragend", () => { clearTimeout(dragTimer); dragTimer = setTimeout(() => { if (!userPoint) { const c = map.getCenter(); viewCenter = [c.lat, c.lng]; renderList(); } }, 500); });
 
   const refreshMapSize = () => requestAnimationFrame(() => map?.invalidateSize({ animate: false, pan: false }));
   refreshMapSize();
@@ -406,12 +539,14 @@ function setupMap() {
   window.setTimeout(refreshMapSize, 700);
   renderMarkers();
   geocodeAll();
+  loadOsmCourts();
+  navigator.permissions?.query({ name: "geolocation" }).then((p) => { if (p.state === "granted") $("#locateBtn")?.click(); }).catch(() => {});
 }
 
 // The X only closes the directions card. The highlighted blue route remains on the map.
 $("#closeRouteBtn")?.addEventListener("click", hideRoutePanel);
 $("#refreshRouteBtn")?.addEventListener("click", () => { if (routeTargetId) startRouteToCourt(routeTargetId); });
-$("#recenterBtn")?.addEventListener("click", () => { if (routeTargetId) clearRoute(); map?.setView(COTABATO_CENTER, 13); });
+$("#recenterBtn")?.addEventListener("click", () => { if (routeTargetId) clearRoute(); userPoint = null; viewCenter = PH_CENTER; $$("[data-fly]").forEach((x) => x.classList.remove("active")); map?.setView(PH_CENTER, 6); renderList(); });
 $("#zoomInBtn")?.addEventListener("click", () => map?.zoomIn());
 $("#zoomOutBtn")?.addEventListener("click", () => map?.zoomOut());
 $("#locateBtn")?.addEventListener("click", () => {
@@ -419,11 +554,12 @@ $("#locateBtn")?.addEventListener("click", () => {
   toast("Requesting your location…");
   navigator.geolocation.getCurrentPosition((position) => {
     const { latitude, longitude } = position.coords;
-    if (latitude < CITY_BOUNDS.minLat || latitude > CITY_BOUNDS.maxLat || longitude < CITY_BOUNDS.minLng || longitude > CITY_BOUNDS.maxLng) {
-      toast("Your location is outside the Cotabato City area filter. Staying on the city map.", "error");
+    if (!inPH(latitude, longitude)) {
+      toast("Your location looks to be outside the Philippines. Showing the whole country instead.", "error");
       return;
     }
-    map.setView([latitude, longitude], 15);
+    userPoint = [latitude, longitude]; viewCenter = userPoint;
+    map.setView([latitude, longitude], 13); renderList();
     L.circleMarker([latitude, longitude], { radius: 8, color: "#ffffff", fillColor: "#3be6b4", fillOpacity: 1, weight: 3 }).addTo(map).bindTooltip("You are here").openTooltip();
     toast("Centered on your location.", "success");
   }, () => toast("Location permission was not granted.", "error"), { enableHighAccuracy: true, timeout: 10000 });
@@ -450,6 +586,13 @@ function syncSearch(value, persist = true) {
 }
 
 $("#courtSearch")?.addEventListener("input", (e) => syncSearch(e.target.value));
+$("#courtSearch")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submitSearch(e.target.value); });
+$("#courtSidebarSearch")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submitSearch(e.target.value); });
+$$("[data-fly]").forEach((btn) => btn.addEventListener("click", () => {
+  const [la, lo, z] = btn.dataset.fly.split(",").map(Number);
+  flyToPlace(la, lo, z);
+  $$("[data-fly]").forEach((x) => x.classList.toggle("active", x === btn));
+}));
 $("#courtSidebarSearch")?.addEventListener("input", (e) => syncSearch(e.target.value));
 
 $$("[data-filter]").forEach((btn) => btn.addEventListener("click", () => applyFilter(btn.dataset.filter, btn)));
@@ -522,6 +665,7 @@ function setTheme(theme) {
   $$('[data-theme-choice]').forEach((b) => b.classList.toggle('active', b.dataset.themeChoice === valid));
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) themeMeta.setAttribute('content', root.dataset.theme === 'light' ? '#f4f7f6' : '#0c1117');
+  window.PFAppearance?.apply();
 }
 
 function populateSettings() {
@@ -535,6 +679,13 @@ function populateSettings() {
 }
 
 $$('[data-theme-choice]').forEach((btn) => btn.addEventListener('click', () => setTheme(btn.dataset.themeChoice)));
+const togglePanel = (btn, panel) => { const open = panel.classList.toggle("hidden") === false; btn.setAttribute("aria-expanded", String(open)); };
+$("#accentToggle")?.addEventListener("click", () => togglePanel($("#accentToggle"), $("#accentPanel")));
+$("#textToggle")?.addEventListener("click", () => togglePanel($("#textToggle"), $("#textPanel")));
+$$("button[data-accent-choice]").forEach((b) => b.addEventListener("click", () => window.PFAppearance?.setAccent(b.dataset.accentChoice)));
+$("#customAccent")?.addEventListener("input", (e) => window.PFAppearance?.setCustom(e.target.value));
+$$("[data-text-choice]").forEach((b) => b.addEventListener("click", () => window.PFAppearance?.setText(b.dataset.textChoice)));
+$("#resetLook")?.addEventListener("click", () => { window.PFAppearance?.reset(); toast("Colors reset to default.", "success"); });
 $("#shareReportName")?.addEventListener("change", (e) => localStorage.setItem(REPORT_NAME_KEY, String(e.target.checked)));
 $("#rememberSearch")?.addEventListener("change", (e) => {
   localStorage.setItem(REMEMBER_SEARCH_KEY, String(e.target.checked));
@@ -574,7 +725,7 @@ $("#clearLocalDataBtn")?.addEventListener("click", () => {
   sidebarFilter = "all";
   if ($("#courtSearch")) $("#courtSearch").value = "";
   if ($("#courtSidebarSearch")) $("#courtSidebarSearch").value = "";
-  setTheme("system"); renderList(); renderMarkers();
+  setTheme("system"); window.PFAppearance?.reset(); renderList(); renderMarkers();
   toast("Local favorites and preferences cleared.", "success");
 });
 
@@ -631,13 +782,11 @@ function renderUser(user) {
 
 function subscribeReports() {
   if (!db) return;
-  onSnapshot(doc(db, "availabilityReports", "_meta"), () => {});
-  for (const court of COURTS) {
-    onSnapshot(doc(db, "availabilityReports", court.id), (snap) => {
-      if (snap.exists()) communityReports[court.id] = snap.data(); else delete communityReports[court.id];
-      renderList(); renderMarkers();
-    }, (err) => console.warn("Availability sync failed", err));
-  }
+  onSnapshot(collection(db, "availabilityReports"), (snap) => {
+    communityReports = {};
+    snap.forEach((d) => { if (d.id !== "_meta") communityReports[d.id] = d.data(); });
+    renderList(); renderMarkers();
+  }, (err) => console.warn("Availability sync failed", err));
 }
 
 function start() {

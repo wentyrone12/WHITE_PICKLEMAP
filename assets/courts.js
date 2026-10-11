@@ -1,7 +1,9 @@
-// Seeded Cotabato City court directory. Location pins are geocoded at runtime from these addresses.
+// Nationwide app: these are curated seed listings (Cotabato City). Courts all over the Philippines are
+// loaded live from OpenStreetMap in app.js. Seed pins are geocoded at runtime from these addresses. Location pins are geocoded at runtime from these addresses.
 // Availability is intentionally separate from the directory data and comes from community reports.
 export const COTABATO_CENTER = [7.22361, 124.24644];
-export const CITY_BOUNDS = { minLat: 7.14, maxLat: 7.29, minLng: 124.17, maxLng: 124.31 };
+export const PH_CENTER = [12.8797, 121.774];
+export const PH_BOUNDS = { minLat: 4.2, maxLat: 21.5, minLng: 116.0, maxLng: 127.0 };
 
 export const COURTS = [
   { id:"uptown", name:"Uptown Pickleball Cotabato", area:"Tamontaka", barangay:"Tamontaka", address:"56MH+8GR, Tamontaka Bubong Rd, Cotabato City, Maguindanao del Norte", type:"indoor", courts:4, rate:"₱350/hr", contact:"", tags:["all levels","reservable"], source:"public_listing" },
