@@ -1,6 +1,6 @@
-# Cotabato PickleFinder
+# PickleFinder Philippines
 
-A mobile-first court-finder website for **Cotabato City only**.
+A mobile-first pickleball court-finder for **the whole Philippines**.
 
 ## Included
 - `index.html` — Firebase email/password login + Google sign-in
@@ -44,3 +44,10 @@ Map tiles use OpenStreetMap. Addresses are geocoded client-side through Nominati
 ### PWA / Phone installation
 The dashboard now includes a responsive mobile sidebar, Court Directory, Settings, Light/Dark/System themes, account/privacy controls, and PWA installation support.
 Serve this project over HTTPS (GitHub Pages/Firebase Hosting) or localhost, then use the browser's Install/Add to Home Screen option.
+
+
+## v2 — Nationwide + color themes
+- **All of the Philippines:** courts are loaded live from OpenStreetMap (Overpass API, `sport=pickleball`) for the whole country, merged per venue, cached in the browser for 24h, and shown with map clustering. The curated Cotabato City directory stays as seed data.
+- **Place search:** type a city/place in the search box and press Enter to fly there. City chips (Metro Manila, Cebu, Davao, etc.) jump straight to a region. Court lists are sorted nearest-first, using your location when allowed.
+- **Color themes:** Settings → Appearance → *Color theme* (9 presets + any custom color) and *Text color* (Default, Tinted, Warm, Cool, High contrast). Works in light and dark mode, and on the login pages too.
+- Availability reports now use one Firestore collection listener instead of one per court, so it scales to thousands of courts.

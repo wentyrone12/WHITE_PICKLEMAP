@@ -18,7 +18,8 @@
       else if (window.matchMedia?.("(prefers-color-scheme: light)")?.matches) document.documentElement.dataset.theme = "light";
     })();
   </script>
-  <meta name="description" content="Find pickleball courts in Cotabato City." />
+  <meta name="description" content="Find pickleball courts anywhere in the Philippines." />
+  <script src="assets/appearance.js"></script>
   <title>PickleFinder — Court Map</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,7 +27,8 @@
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="assets/styles.css?v=3" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
+  <link rel="stylesheet" href="assets/styles.css?v=4" />
 </head>
 
 <body class="app-page">
@@ -40,7 +42,7 @@
           <div class="brand-mark"><span class="ball-dot"></span></div>
           <div>
             <div class="brand-name">W-PICKLE<span>FINDER</span></div>
-            <div class="brand-sub">COTABATO CITY</div>
+            <div class="brand-sub">PHILIPPINES</div>
           </div>
         </a>
         <button id="closeSidebar" class="icon-btn mobile-only" aria-label="Close menu">×</button>
@@ -80,7 +82,7 @@
           <div class="sidebar-panel-head">
             <button class="panel-back" type="button" data-sidebar-back><span>‹</span> Back</button>
             <div><span class="eyebrow">DIRECTORY</span>
-              <h2>Courts in Cotabato</h2>
+              <h2>Courts nationwide</h2>
             </div>
             <span class="panel-count" id="sidebarCourtCount">9</span>
           </div>
@@ -117,6 +119,38 @@
                 <button type="button" data-theme-choice="dark">☾ Dark</button>
                 <button type="button" data-theme-choice="system">◐ System</button>
               </div>
+
+              <button type="button" class="pick-row" id="accentToggle" aria-expanded="false" aria-controls="accentPanel">
+                <span class="pick-dot" id="accentCurrent"></span><span class="pick-label">Color theme</span><small id="accentName">Mint</small><span class="pick-chev">⌄</span>
+              </button>
+              <div class="pick-panel hidden" id="accentPanel">
+                <div class="swatch-grid">
+                  <button type="button" class="swatch" data-accent-choice="mint" title="Mint" style="--sw:#35e2b0" aria-label="Mint"></button>
+                  <button type="button" class="swatch" data-accent-choice="ocean" title="Ocean" style="--sw:#4da3ff" aria-label="Ocean"></button>
+                  <button type="button" class="swatch" data-accent-choice="violet" title="Violet" style="--sw:#a98bff" aria-label="Violet"></button>
+                  <button type="button" class="swatch" data-accent-choice="pink" title="Pink" style="--sw:#ff7ac6" aria-label="Pink"></button>
+                  <button type="button" class="swatch" data-accent-choice="rose" title="Rose" style="--sw:#ff6b7a" aria-label="Rose"></button>
+                  <button type="button" class="swatch" data-accent-choice="orange" title="Sunset" style="--sw:#ff9a47" aria-label="Sunset"></button>
+                  <button type="button" class="swatch" data-accent-choice="amber" title="Gold" style="--sw:#ffd23f" aria-label="Gold"></button>
+                  <button type="button" class="swatch" data-accent-choice="lime" title="Lime" style="--sw:#b6f23a" aria-label="Lime"></button>
+                  <button type="button" class="swatch" data-accent-choice="cyan" title="Aqua" style="--sw:#22d3ee" aria-label="Aqua"></button>
+                  <label class="swatch custom" data-accent-choice="custom" title="Custom color"><input type="color" id="customAccent" value="#35e2b0" aria-label="Pick any color" /></label>
+                </div>
+              </div>
+
+              <button type="button" class="pick-row" id="textToggle" aria-expanded="false" aria-controls="textPanel">
+                <span class="pick-aa">Aa</span><span class="pick-label">Text color</span><small id="textName">Default</small><span class="pick-chev">⌄</span>
+              </button>
+              <div class="pick-panel hidden" id="textPanel">
+                <div class="text-options">
+                  <button type="button" class="text-opt" data-text-choice="default"><span class="tsample">Aa</span><span><b>Default</b><small>Clean white / charcoal</small></span></button>
+                  <button type="button" class="text-opt" data-text-choice="tinted"><span class="tsample" style="color:var(--accent)">Aa</span><span><b>Tinted</b><small>Text takes on your color theme</small></span></button>
+                  <button type="button" class="text-opt" data-text-choice="warm"><span class="tsample" style="color:#ffb868">Aa</span><span><b>Warm</b><small>Cozy cream tones</small></span></button>
+                  <button type="button" class="text-opt" data-text-choice="cool"><span class="tsample" style="color:#7db4ff">Aa</span><span><b>Cool</b><small>Crisp icy blue tones</small></span></button>
+                  <button type="button" class="text-opt" data-text-choice="contrast"><span class="tsample">Aa</span><span><b>High contrast</b><small>Maximum readability</small></span></button>
+                </div>
+              </div>
+              <button type="button" class="reset-look" id="resetLook">Reset colors to default</button>
             </section>
 
             <section class="settings-group">
@@ -164,7 +198,7 @@
 
       <div class="sidebar-bottom">
         <div class="city-lock"><span class="status-dot"></span>
-          <div><b>Cotabato City only</b><span>Local area filter is on</span></div>
+          <div><b>Nationwide</b><span>Live courts across the Philippines</span></div>
         </div>
         <button id="signOutBtn" class="signout-btn"><span>↪</span> Sign out</button>
       </div>
@@ -174,7 +208,7 @@
       <header class="topbar">
         <button id="openSidebar" class="icon-btn mobile-only" aria-label="Open menu">☰</button>
         <div class="top-title"><span class="eyebrow">COURT FINDER</span>
-          <h1>Pickleball around <span>Cotabato City</span></h1>
+          <h1>Pickleball across <span>the Philippines</span></h1>
         </div>
         <div class="top-actions"><button id="locateBtn" class="ghost-btn"><span>◎</span><span class="locate-text">Use my
               location</span></button><button id="topProfile" class="profile-chip"><span class="avatar small"
@@ -183,12 +217,28 @@
 
       <section class="search-row">
         <div class="search-box"><span>⌕</span><input id="courtSearch" type="search"
-            placeholder="Search court, barangay, or landmark…" /><kbd>Ctrl K</kbd></div>
+            placeholder="Search court, or type a city / place and press Enter…" /><kbd>Ctrl K</kbd></div>
         <div class="quick-filters" id="quickFilters"><button class="filter-chip active"
             data-filter="all">All</button><button class="filter-chip" data-filter="available">Available</button><button
             class="filter-chip" data-filter="indoor">Indoor</button><button class="filter-chip"
             data-filter="outdoor">Outdoor</button></div>
       </section>
+
+      <div class="city-chips" id="cityChips" aria-label="Jump to a city">
+        <button class="city-chip" data-fly="14.5995,120.9842,11">Metro Manila</button>
+        <button class="city-chip" data-fly="15.1450,120.5887,12">Clark / Pampanga</button>
+        <button class="city-chip" data-fly="16.4023,120.5960,13">Baguio</button>
+        <button class="city-chip" data-fly="10.3157,123.8854,12">Cebu</button>
+        <button class="city-chip" data-fly="10.6765,122.9509,13">Bacolod</button>
+        <button class="city-chip" data-fly="10.7202,122.5621,13">Iloilo</button>
+        <button class="city-chip" data-fly="9.7392,118.7353,12">Palawan</button>
+        <button class="city-chip" data-fly="8.4542,124.6319,13">Cagayan de Oro</button>
+        <button class="city-chip" data-fly="7.0731,125.6128,12">Davao</button>
+        <button class="city-chip" data-fly="6.1164,125.1716,12">General Santos</button>
+        <button class="city-chip" data-fly="6.9214,122.0790,12">Zamboanga</button>
+        <button class="city-chip" data-fly="7.2236,124.2464,13">Cotabato</button>
+        <button class="city-chip" data-fly="12.8797,121.774,6">All Philippines</button>
+      </div>
 
       <section class="workspace">
         <div class="map-panel map-panel-main">
@@ -227,8 +277,8 @@
         <!-- Kept for existing rendering logic; court browsing is now in the sidebar. -->
         <aside class="results-panel legacy-results" aria-hidden="true">
           <div class="results-head">
-            <div><span class="eyebrow">COTABATO CITY</span>
-              <h2 id="resultsTitle">Courts near the city</h2>
+            <div><span class="eyebrow">PHILIPPINES</span>
+              <h2 id="resultsTitle">Courts near you</h2>
             </div><button id="clearFilters" class="text-btn">Clear</button>
           </div>
           <div class="results-summary"><b id="visibleCount">0</b><span>venues shown</span><span
@@ -278,7 +328,7 @@
       <h2>How this works</h2>
       <div class="about-stack">
         <div><b>1. Find</b>
-          <p>Use the map, search, and filters to discover courts inside the Cotabato City area.</p>
+          <p>Use the map, search, and filters to discover pickleball courts anywhere in the Philippines. Type a city or place and press Enter to jump there.</p>
         </div>
         <div><b>2. Verify</b>
           <p>Venue addresses, rates, and hours can change. Open the venue details or Directions link before travelling.
@@ -288,12 +338,13 @@
           <p>Signed-in players can post a community availability report. Recent reports appear on court cards.</p>
         </div>
       </div>
-      <p class="source-note">Court listings in this MVP are seeded from public Cotabato City directory listings checked
-        during development. They are not an official city registry.</p>
+      <p class="source-note">Court locations are loaded live from OpenStreetMap (community-mapped, all over the Philippines) plus a
+        curated Cotabato City directory. They are not an official registry, so please verify before travelling.</p>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
   <script type="module" src="assets/app.js"></script>
 </body>
 

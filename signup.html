@@ -11,13 +11,13 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <meta name="theme-color" content="#0c1117" />
-  <title>Cotabato PickleFinder — Sign up</title>
+  <title>PickleFinder Philippines — Sign up</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css" />
+  <script src="assets/appearance.js"></script><link rel="stylesheet" href="assets/styles.css?v=4" />
 </head>
 
 <body class="auth-page">
@@ -34,9 +34,8 @@
             <div class="brand-sub">COTABATO CITY</div>
           </div>
         </div>
-        <div class="auth-heading"><span class="eyebrow">JOIN THE COMMUNITY</span>
+        <div class="auth-heading"><span class="eyebrow"></span>
           <h2>Create your account</h2>
-          <p>Save favorite courts and share what is happening on the ground.</p>
         </div>
         <form id="signupForm" class="auth-form" novalidate>
           <label>Display name</label>
@@ -44,7 +43,7 @@
               placeholder="Your name" minlength="2" required /></div>
           <label>Email address</label>
           <div class="input-wrap"><span class="icon">@</span><input id="signupEmail" type="email" autocomplete="email"
-              placeholder="you@example.com" required /></div>
+              placeholder="W-PickleFinder@example.com" required /></div>
           <label>Password</label>
           <div class="input-wrap"><span class="icon">••</span><input id="signupPassword" type="password"
               autocomplete="new-password" placeholder="Minimum 6 characters" minlength="6" required /><button
@@ -72,7 +71,6 @@
               <path fill="#EA4335"
                 d="M12 6.13c1.43 0 2.71.49 3.72 1.46l2.79-2.79C16.86 3.2 14.64 2.25 12 2.25a9.79 9.79 0 0 0-8.75 5.41l3.24 2.52C7.27 7.86 9.44 6.13 12 6.13Z" />
             </svg></span><span>Continue with Google</span></button>
-        <p class="auth-switch">Already registered? <a href="index.html">Sign in</a></p>
         <div id="authMessage" class="auth-message" role="status"></div>
       </div>
     </section>

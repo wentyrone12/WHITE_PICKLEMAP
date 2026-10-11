@@ -1,7 +1,7 @@
 {
-  "name": "PickleFinder — Cotabato City",
+  "name": "PickleFinder — Philippines",
   "short_name": "PickleFinder",
-  "description": "Find pickleball courts in Cotabato City.",
+  "description": "Find pickleball courts anywhere in the Philippines.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

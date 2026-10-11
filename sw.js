@@ -1,4 +1,4 @@
-const CACHE = "picklefinder-v2";
+const CACHE = "picklefinder-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const APP_SHELL = [
   "./assets/app.js",
   "./assets/auth.js",
   "./assets/courts.js",
+  "./assets/appearance.js",
   "./assets/firebase-config.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
